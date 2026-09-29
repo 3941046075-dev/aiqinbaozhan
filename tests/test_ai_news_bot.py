@@ -1,11 +1,13 @@
 import importlib.util
 import json
+import io
+import urllib.error
 import sys
 import unittest
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 MODULE_PATH = Path(__file__).parents[1] / "src" / "ai_news_bot.py"
@@ -17,6 +19,16 @@ SPEC.loader.exec_module(bot)
 
 
 NOW = datetime(2026, 9, 2, 1, 0, tzinfo=timezone.utc)
+
+
+def setUpModule():
+    # A stale mock must fail locally instead of making a real API request.
+    network_guard = patch.object(
+        bot.urllib.request, "urlopen",
+        side_effect=AssertionError("单元测试禁止真实网络请求；请模拟实际的请求入口。"),
+    )
+    network_guard.start()
+    unittest.addModuleCleanup(network_guard.stop)
 
 
 def sample_digest(count=4):
@@ -202,14 +214,44 @@ class ResponseTests(unittest.TestCase):
             "https://example.com/?id=123",
         )
 
-    def test_telegram_send_is_never_automatically_retried(self):
-        with patch.object(
-            bot,
-            "request_json",
-            return_value={"ok": True, "result": {"message_id": 7}},
-        ) as request:
+    def test_telegram_send_success_is_not_retried(self):
+        reply = MagicMock()
+        reply.__enter__.return_value.read.return_value = b'{"ok":true,"result":{"message_id":7}}'
+        with patch.object(bot.urllib.request, "urlopen", return_value=reply) as request:
             self.assertEqual(bot.publish_to_telegram("token", "@channel", "post"), 7)
-            self.assertEqual(request.call_args.kwargs["retries"], 1)
+            self.assertEqual(request.call_count, 1)
+
+    def test_telegram_429_waits_before_retry(self):
+        rejection = urllib.error.HTTPError('https://example.com', 429, 'limited', {},
+            io.BytesIO(b'{"ok":false,"error_code":429,"parameters":{"retry_after":5}}'))
+        reply = MagicMock()
+        reply.__enter__.return_value.read.return_value = b'{"ok":true,"result":{"message_id":7}}'
+        with patch.object(bot.urllib.request, "urlopen", side_effect=[rejection, reply]) as send, patch.object(bot.time, "sleep") as sleep:
+            self.assertEqual(bot.publish_to_telegram("token", "@channel", "post"), 7)
+            sleep.assert_called_once_with(5)
+            self.assertEqual(send.call_count, 2)
+
+    def test_telegram_unknown_errors_are_not_retried(self):
+        for error in (TimeoutError(), urllib.error.HTTPError('https://example.com', 500, 'failed', {}, io.BytesIO(b'{}')),
+                      urllib.error.HTTPError('https://example.com', 429, 'limited', {}, io.BytesIO(b'{}'))):
+            with self.subTest(error=error), patch.object(bot.urllib.request, "urlopen", side_effect=error) as send, patch.object(bot.time, "sleep") as sleep:
+                with self.assertRaises(bot.AppError):
+                    bot.publish_to_telegram("token", "@channel", "post")
+                self.assertEqual(send.call_count, 1)
+                sleep.assert_not_called()
+
+    def test_telegram_retry_delay_is_bounded(self):
+        for delay in (0, 61, True, "5", None):
+            self.assertIsNone(bot.telegram_retry_after(json.dumps({"ok":False,"error_code":429,"parameters":{"retry_after":delay}})))
+
+    def test_telegram_rate_limit_retry_is_not_infinite(self):
+        errors = [urllib.error.HTTPError('https://example.com', 429, 'limited', {},
+            io.BytesIO(b'{"ok":false,"error_code":429,"parameters":{"retry_after":5}}')) for _ in range(3)]
+        with patch.object(bot.urllib.request, "urlopen", side_effect=errors) as send, patch.object(bot.time, "sleep") as sleep:
+            with self.assertRaisesRegex(bot.AppError, "429"):
+                bot.publish_to_telegram("token", "@channel", "post")
+            self.assertEqual(send.call_count, 3)
+            self.assertEqual(sleep.call_count, 2)
 
     def test_generation_retries_once_when_too_few_items(self):
         config = bot.RuntimeConfig("key", "", "", True, "model", "", "")
