@@ -1,0 +1,62 @@
+name: Telegram 连通性检查
+
+on:
+  workflow_dispatch:
+    inputs:
+      send_test:
+        description: "getMe 成功后发送一条明确标注的测试消息（不发布新闻）"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aiqinbaozhan-daily-publisher
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 验证机器人及可选测试发送
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL: ${{ vars.TELEGRAM_CHANNEL }}
+          SEND_TEST: ${{ inputs.send_test }}
+        shell: python
+        run: |
+          import os
+          import sys
+          from datetime import datetime, timezone, timedelta
+          sys.path.insert(0, "src")
+          import ai_news_bot as bot
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          channel = os.environ.get("TELEGRAM_CHANNEL", "").strip()
+          try:
+              if not token or not channel:
+                  raise bot.AppError("缺少 TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHANNEL。")
+              result = bot.request_json(f"https://api.telegram.org/bot{token}/getMe", retries=1)
+              if result.get("ok") is not True or result.get("result", {}).get("is_bot") is not True:
+                  raise bot.AppError("getMe 未确认机器人身份。")
+              print("getMe 成功：GitHub Actions 已连接 Telegram 并验证机器人身份。")
+              if os.environ.get("SEND_TEST") == "true":
+                  if os.environ.get("GITHUB_RUN_ATTEMPT", "1") != "1":
+                      raise bot.AppError("重跑任务不重复发送测试消息；如需再次测试请新建一次手动运行。")
+                  now = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
+                  message_id = bot.publish_to_telegram(token, channel,
+                      f"🧪 AI 情报站连接测试｜{now}（北京时间）\n机器人连接和频道发送权限验证成功。这是一条测试消息，不是每日新闻。")
+                  print(f"测试消息发送成功，message_id={message_id}。未生成新闻、未修改发布状态。")
+              else:
+                  print("只检查 getMe，没有发送消息或修改发布状态。")
+          except Exception as exc:
+              detail = str(exc).replace(token, "[REDACTED]") if token else str(exc)
+              print(f"检查失败：{bot.redact_secrets(detail)}", file=sys.stderr)
+              sys.exit(1)
