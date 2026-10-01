@@ -1,6 +1,6 @@
 {
   "date": "2026-10-01",
-  "status": "sending_main",
+  "status": "main_sent",
   "claimed_at": "2026-10-01T01:13:06+00:00",
   "content_sha256": "4f92aa76440c63bd894e968dd2538c8cba44e6e68fd6b197acc3e5b1542d9a0f",
   "generated_at": "2026-10-01T01:12:03+00:00",
@@ -119,5 +119,6 @@
     ],
     "editorial_comment": "模型还在冲榜，真正先毕业的却是安全审计和基础设施。"
   },
-  "channel": "@aiqinbaozhan"
+  "channel": "@aiqinbaozhan",
+  "telegram_message_id": 12
 }
