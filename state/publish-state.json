@@ -1,6 +1,6 @@
 {
   "date": "2026-10-02",
-  "status": "sending_document",
+  "status": "published",
   "claimed_at": "2026-10-02T01:12:56+00:00",
   "content_sha256": "9ef5cdafed0fc3d61d64e167108bac7f79dde9f669e751787f5c5c77fc3d3c23",
   "generated_at": "2026-10-02T01:11:19+00:00",
@@ -104,5 +104,8 @@
     "editorial_comment": "模型还在比参数，企业已经先比谁敢把Agent放进生产线。"
   },
   "channel": "@aiqinbaozhan",
-  "telegram_message_id": 14
+  "telegram_message_id": 14,
+  "published_at": "2026-10-02T01:13:31+00:00",
+  "telegram_document_message_id": 15,
+  "pdf_sha256": "8940a9355a1f4e00c0386df609920da3ec677b9094b49f0416750e8e43dcfae8"
 }
