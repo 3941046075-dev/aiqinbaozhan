@@ -1,6 +1,6 @@
 {
   "date": "2026-10-02",
-  "status": "sending_main",
+  "status": "main_sent",
   "claimed_at": "2026-10-02T01:12:56+00:00",
   "content_sha256": "9ef5cdafed0fc3d61d64e167108bac7f79dde9f669e751787f5c5c77fc3d3c23",
   "generated_at": "2026-10-02T01:11:19+00:00",
@@ -103,5 +103,6 @@
     ],
     "editorial_comment": "模型还在比参数，企业已经先比谁敢把Agent放进生产线。"
   },
-  "channel": "@aiqinbaozhan"
+  "channel": "@aiqinbaozhan",
+  "telegram_message_id": 14
 }
