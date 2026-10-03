@@ -30,13 +30,15 @@ def enrich_schema(schema):
 def editorial_prompt():
     return """
 输出一份共享的深度新闻数据，不输出两份独立事实。
-深度版选4-8个不同事件，必须同时覆盖中国国内和海外AI新闻；不能将同一事件拆分凑数。
+深度版选1-8个不同事件，始终同时检索中国国内和海外AI新闻；不能将同一事件拆分凑数。
 国内重点检查阿里通义/Qwen、DeepSeek、字节豆包、腾讯、百度、智谱、月之暗面、国内芯片算力与政策，
 海外重点覆盖OpenAI、Anthropic、Google、Meta、模型、Agent、工具、芯片和商业化。
-若国内或海外找不到符合时间和可信度要求的新闻，返回实际结果让程序拒绝，绝不补造。
-region为domestic/global；category为news/business/tool。只有2-5个最重要条目标记in_brief=true，
-精简版必须也同时覆盖国内与全球。headline不超过26字，takeaway不超过58字：一句具体结论，保留实体名称。
+若严格筛选后仅1-3条，允许少量版及单一区域，返回实际核实结果，绝不为栏目补造。
+有4-8条时深度版及精简版仍须同时覆盖国内与全球。
+region为domestic/global；category为news/business/tool。只有1-5个最重要条目标记in_brief=true，
+有4-8条时精简版至少2条。headline不超过26字，takeaway不超过58字：一句具体结论，保留实体名称。
 trend不超过65字，概括当天真实趋势；takeaways恰好3句、每句不超过42字，必须源自所选新闻。
+少量版的3句结论可以分别说明同一事件的事实、影响和待核验事项，不能伪装成3条新闻或新增事实。
 editorial_comment是整篇精简帖唯一一句“情报站锐评”，不是每条新闻的点评。
 优先针对当天所选新闻中最重要、最有讨论价值的事件，或这些真实新闻体现的整体AI趋势。
 用自己的中文写15-45字，含标点最多60字；只返回单行正文，不带栏目名、表情或列表。
@@ -58,12 +60,17 @@ watch保留一个具体后续关注点。所有事实都必须受source_url支�
 
 def validate_editorial(digest):
     items = digest["items"]
-    if {i.get("region") for i in items} != {"domestic", "global"}:
+    low_volume = 1 <= len(items) <= 3
+    if not low_volume and {i.get("region") for i in items} != {"domestic", "global"}:
         raise ValueError("缺少合格国内或全球新闻，停止发布，不用旧闻补齐。")
     brief = [i for i in items if i.get("in_brief") is True]
-    if not 2 <= len(brief) <= 5 or {i["region"] for i in brief} != {"domestic", "global"}:
-        raise ValueError("精简主帖须精选2-5条，并覆盖国内与全球。")
+    if not (1 if low_volume else 2) <= len(brief) <= 5:
+        raise ValueError("精简主帖须精选1-5条；常规版至少2条。")
+    if not low_volume and {i["region"] for i in brief} != {"domestic", "global"}:
+        raise ValueError("常规精简主帖须覆盖国内与全球。")
     for item in items:
+        if item.get("region") not in {"domestic", "global"}:
+            raise ValueError("新闻地区无效。")
         if not isinstance(item.get("in_brief"), bool):
             raise ValueError("精简主帖选择标记必须为布尔值。")
         for field in DETAIL_FIELDS:

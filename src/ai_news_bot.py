@@ -156,7 +156,7 @@ def build_prompt(now: datetime) -> str:
 
 时间窗口：{start_text} 至 {end_text}（UTC）；中国日期：{china_date}。
 
-任务：只选出时间窗口内真正重要、可信且适合公开发布的 4～8 条不同 AI 新闻。范围仅限：
+任务：只选出时间窗口内真正重要、可信且适合公开发布的 1～8 条不同 AI 新闻；少而精，只有1～3条也可发布。范围仅限：
 OpenAI、Anthropic、Google、Meta、AI 模型、Agent、AI 工具、芯片/算力、融资/商业化、
 AI 创业机会、重要政策。
 
@@ -170,8 +170,8 @@ AI 创业机会、重要政策。
 5. 用自己的中文概括，不照抄标题或正文。语言专业、简洁、高信息密度，不夸张、不标题党。
 6. what_happened 回答“发生了什么”；why_important 回答“为什么重要”，避免空话和重复。
 7. source_url 必须逐字复制你实际搜索并阅读过的那篇来源页面 URL。
-8. 如果严格筛选后不足 4 条，不得用低质量内容凑数；此时仍按事实返回实际条目，程序会明确失败，
-   以避免发布不合格内容。
+8. 如果严格筛选后只有1～3条，返回实际条目，不用低质量内容凑数；一条都没有就返回空列表，
+   程序会停止发布。数量减少不能放宽来源、时间、真实性与重要性标准。
 9. “今日值得关注的一件事”应从入选新闻提炼一个最值得继续跟踪的具体事项，不新增未经来源支持的事实。
 
 仅按给定 JSON Schema 返回，不要输出 Markdown 或额外说明。
@@ -430,9 +430,9 @@ def validate_digest(
     if not isinstance(digest, dict):
         raise AppError("生成结果不是 JSON 对象。")
     items = digest.get("items")
-    if not isinstance(items, list) or not 4 <= len(items) <= 8:
+    if not isinstance(items, list) or not 1 <= len(items) <= 8:
         actual = len(items) if isinstance(items, list) else 0
-        raise AppError(f"严格筛选后得到 {actual} 条新闻，不满足 4～8 条深度新闻要求，停止发布。")
+        raise AppError(f"严格筛选后得到 {actual} 条新闻，不满足 1～8 条深度新闻要求，停止发布。")
     window_start = now - timedelta(hours=24)
     seen_urls: set[str] = set()
     searched_hosts = {canonical_host(url) for url in searched_urls or set()}
