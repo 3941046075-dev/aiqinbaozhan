@@ -123,9 +123,30 @@ class ValidationTests(unittest.TestCase):
         self.assertNotIn("发生了什么：", post)
         self.assertLessEqual(bot.utf16_length(post), 4096)
 
-    def test_rejects_less_than_four_items(self):
-        with self.assertRaisesRegex(bot.AppError, "不满足 4～8 条"):
-            bot.validate_digest(sample_digest(3), NOW)
+    def test_accepts_one_to_three_verified_items(self):
+        for count in (1, 2, 3):
+            with self.subTest(count=count):
+                digest = sample_digest(count)
+                for item in digest["items"]:
+                    item["region"] = "global"
+                bot.validate_digest(digest, NOW)
+                self.assertIn("🌍 全球 AI", bot.format_post(digest, NOW))
+
+    def test_rejects_zero_or_too_many_items(self):
+        for count in (0, 9):
+            with self.subTest(count=count), self.assertRaisesRegex(bot.AppError, "不满足 1～8 条"):
+                bot.validate_digest(sample_digest(count), NOW)
+
+    def test_low_volume_still_checks_date_source_and_region(self):
+        for field, value, error in (("published_at", (NOW - timedelta(hours=25)).isoformat(), "24 小时"),
+                                    ("source_url", "invalid", "URL"), ("region", "invalid", "地区"),
+                                    ("in_brief", False, "精选")):
+            digest = sample_digest(1)
+            digest["items"][0][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(bot.AppError, error):
+                bot.validate_digest(digest, NOW)
+        with self.assertRaisesRegex(bot.AppError, "来源站点"):
+            bot.validate_digest(sample_digest(1), NOW, searched_urls={"https://unrelated.invalid/news"})
 
     def test_rejects_old_news(self):
         digest = sample_digest()
@@ -253,7 +274,7 @@ class ResponseTests(unittest.TestCase):
             self.assertEqual(send.call_count, 3)
             self.assertEqual(sleep.call_count, 2)
 
-    def test_generation_retries_once_when_too_few_items(self):
+    def test_generation_retries_once_when_items_exceed_limit(self):
         config = bot.RuntimeConfig("key", "", "", True, "model", "", "")
 
         def response_for(count):
@@ -280,14 +301,14 @@ class ResponseTests(unittest.TestCase):
         with patch.object(
             bot,
             "request_json",
-            side_effect=[response_for(3), response_for(4)],
+            side_effect=[response_for(9), response_for(4)],
         ) as request:
             digest = bot.generate_digest(config, NOW)
 
         self.assertEqual(len(digest["items"]), 4)
         self.assertEqual(request.call_count, 2)
         second_prompt = request.call_args_list[1].kwargs["body"]["input"]
-        self.assertIn("上一次严格筛选后只有 3 条", second_prompt)
+        self.assertIn("上一次严格筛选后只有 9 条", second_prompt)
 
 
 class FlowTests(unittest.TestCase):
