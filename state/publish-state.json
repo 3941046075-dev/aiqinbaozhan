@@ -1,6 +1,6 @@
 {
   "date": "2026-10-03",
-  "status": "sending_main",
+  "status": "main_sent",
   "claimed_at": "2026-10-03T06:58:52+00:00",
   "content_sha256": "aa79d468b0abb6a2c76be15d6b510341cb3ec85b7f8b918af0e88cd9f4a72a11",
   "generated_at": "2026-10-03T06:57:53+00:00",
@@ -82,5 +82,6 @@
     ],
     "editorial_comment": "代理开始四处伸手，平台终于想起先给它装门把手。"
   },
-  "channel": "@aiqinbaozhan"
+  "channel": "@aiqinbaozhan",
+  "telegram_message_id": 16
 }
