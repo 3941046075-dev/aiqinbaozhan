@@ -3,7 +3,7 @@ name: 发布每日 AI 情报
 on:
   schedule:
     # GitHub Actions cron 使用 UTC；01:00 UTC = 中国时间 09:00。
-    - cron: "0，23 1 * * *"
+    - cron: "0,23 1 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
